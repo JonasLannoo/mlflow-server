@@ -1,0 +1,50 @@
+version: '3.3'
+
+services:
+    db:
+        restart: always
+        image: mysql/mysql-server
+        ports:
+            - "3306:3306"
+        environment:
+            - MYSQL_DATABASE=${MYSQL_DATABASE}
+            - MYSQL_USER=${MYSQL_USER}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+        volumes:
+            - dbdata:/var/lib/mysql
+
+    minio:
+        restart: always
+        image: minio/minio
+        environment:
+          - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+          - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+          - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+          - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+          - MINIO_REGION=${MINIO_REGION}
+        ports:
+          - "9000:9000"
+          - "9001:9001"
+        volumes:
+          - ./minio/data:/data
+        command: server /data --console-address ":9001"
+
+    web:
+        restart: always
+        build: ./mlflow
+        image: mlflow_server
+        ports:
+            - "5000:5000"
+        environment:
+            - AWS_ACCESS_KEY_ID=${MINIO_ACCESS_KEY}
+            - AWS_SECRET_ACCESS_KEY=${MINIO_SECRET_KEY}
+            - AWS_DEFAULT_REGION=${MINIO_REGION}
+            - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+        # command: mlflow server --backend-store-uri mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE} --default-artifact-root s3://${BUCKET_NAME}/ --artifacts-destination s3://${BUCKET_NAME}/ --host 0.0.0.0       
+        command: mlflow server --backend-store-uri mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE} --artifacts-destination s3://${BUCKET_NAME}/ --host 0.0.0.0       
+        # $MINIO_ACCESS_KEY:$MINIO_SECRET_KEY@minio:$MINIO_PORT/
+
+volumes:
+  dbdata:
+    driver: local
